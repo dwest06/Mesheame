@@ -1,6 +1,7 @@
 // //////////////////////
 // VARIABLES GLOBALES
 // /////////////////////
+
 // Canavs and context
 let canvas = document.getElementById("mycanvas")
 let context = canvas.getContext('2d');
@@ -20,8 +21,10 @@ let connections = []
 let drawTri = true
 let drawCon = true
 // let darwCen = true
-let drawGri = true
+let drawGri = false
 
+// Min Angle
+let minAngle = 25
 
 let point = (x,y) => {
 	return {x: x, y: y}
@@ -46,7 +49,7 @@ background.onload = function() {
 	canvas.width = this.width
 }
 let hack = document.getElementById("hackimg")
-background.src = hack.src
+background.src = '/home/david/work/Mesheame/src/back.png'
 background.style.opacity = 0.4
 
 
@@ -64,6 +67,7 @@ let insideConstrain = (x, y, rect) => {
 
 let showTriangles = () => {
 	let lista = document.getElementById("lista")
+	lista.innerHTML = ""
 	// Para imprimir la lista de los triangulos
 
 	for (let i of triangles) {
@@ -80,8 +84,32 @@ let showTriangles = () => {
 	}
 }
 
+let anglesValidsAux = (a,b,c) =>{
+	var Ab = Math.abs(b.x - c.x);
+	var Ac = Math.abs(b.y - c.y);
+
+	var A = Math.sqrt((Ab*Ab) + (Ac*Ac));
+
+	var Bb = Math.abs(a.x - c.x);
+	var Bc = Math.abs(a.y - c.y);
+
+	var B = Math.sqrt((Bb*Bb) + (Bc*Bc));
+
+	var Cb = Math.abs(a.x - b.x);
+	var Cc = Math.abs(a.y - b.y);
+
+	var C = Math.sqrt((Cb*Cb) + (Cc*Cc));
+
+	var angleA = Math.abs(Math.acos(((B*B) + (C*C) - (A*A) )/(2*C*B))) * 180 / Math.PI;
+	var angleB = Math.abs(Math.acos(((C*C) + (A*A) - (B*B))/(2*C*A))) * 180 / Math.PI;
+	// var angleC = Math.abs(Math.acos(((A*A) + (B*B) - (C*C))/(2*B*A))) * 180 / Math.PI;
+	var angleC = 180 - angleA - angleB
+	return (angleA < minAngle) || (angleB < minAngle) || (angleC < minAngle)
+}
 
 let generateMesh = () => {
+
+	triangles = []
 
 	// Se necesita una lista de puntos que representen el grafo
 	// y una lista de rectangulos de restricciones
@@ -89,6 +117,7 @@ let generateMesh = () => {
 	// Convertimos el arreglo de puntos en arreglo de arreglo de coordenadas (?)
 	// de la forma [[1,2],[1,3]...], para poder generar los triangulos.
 	let auxpoints = []
+
 	for(let k of points){
 		auxpoints.push([k.x,k.y])
 	}
@@ -105,22 +134,24 @@ let generateMesh = () => {
 		var p2 = points[del.triangles[i + 1]]
 		var p3 = points[del.triangles[i + 2]]
 		var centertri = center(p1.x, p2.x, p3.x, p1.y, p2.y, p3.y)
-	
+		
+		// Filtramos por constrains
 		for (let j of constrains) {
 			if (insideConstrain(centertri.x, centertri.y, j)) {
 				opt = true
-				console.log(centertri, j)
-	
 			}
 		}
+		// Verificamos que cumpla con cad angulo
+		opt = opt || anglesValidsAux(p1,p2,p3)
+
 		if (!opt)
 			triangles.push(triangle(p1, p2, p3, centertri.x, centertri.y, i / 3));
 	
 		opt = false
 	}
 	showTriangles()
-	drawTriangles()
 	generateConnections()
+	actualizarCanvas("Mesh Generado")
 }
 
 let drawTriangles = () => { 
@@ -136,20 +167,6 @@ let drawTriangles = () => {
 		context.lineTo(trian.v3.x, trian.v3.y)
 		context.lineTo(trian.v1.x, trian.v1.y)
 		context.stroke();
-		
-		// Dibujamos los vertices de color azul
-		// context.fillStyle = "blue"
-		// context.beginPath();
-		// context.arc(trian.v2.x - 2, trian.v2.y - 2, 4, 0, 2 * Math.PI)
-		// context.stroke();
-
-		// context.beginPath();
-		// context.arc(trian.v3.x - 2, trian.v3.y - 2, 4, 0, 2 * Math.PI)
-		// context.stroke();
-
-		// context.beginPath();
-		// context.arc(trian.v1.x - 2, trian.v1.y - 2, 4, 0, 2 * Math.PI)
-		// context.stroke();
 	
 		// Dibujamos los centros
 		context.strokeStyle = '#CEFF1A';
@@ -170,9 +187,21 @@ let drawTriangles = () => {
 }
 
 let generateTrianglesImage = () => {
+
+	context.clearRect(0, 0, canvas.width, canvas.height);
+	context.fillStyle = 'black';
+
+	drawTriangles()
+	if (drawCon){
+		drawConnections()
+	}
+	drawPoints()
+
 	let triangleImage = canvas.toDataURL("image/png");
 	let imagenElement = document.getElementById("myimg")
 	imagenElement.src = triangleImage
+
+	actualizarCanvas()
 }
 
 
@@ -180,7 +209,8 @@ let generateTrianglesImage = () => {
 let generateConnections = () => {
 	// Conexiones
 	let con = document.getElementById("conexiones")
-	
+	con.innerHTML = ""
+	connections = []
 	// Comprobar si 2 triangulos son vecinos.
 	// para que cumpla, 2 vertices tiene que ser iguales.
 	let comprobarVecino = (t1, t2) => {
@@ -228,6 +258,43 @@ let drawConnections = () => {
 	context.stroke();
 }
 
+// No sirve esta mierda
+let drawGrid = () => {
+	let pixel = document.getElementById("gridpx").value
+	context.strokeStyle = '#f5e342';
+	// context.beginPath();
+	// context.moveTo(20, 0)
+	// context.lineTo(20, canvas.width)
+	// context.stroke();
+	
+	// context.beginPath();
+	// context.moveTo(40, 0)
+	// context.lineTo(40, canvas.width)
+	// context.stroke();
+
+	// context.beginPath();
+	// context.moveTo(60, 0)
+	// context.lineTo(60, canvas.width)
+	// context.stroke();
+	for(let i=pixel; i < 100 ; i = i + 20){
+		context.beginPath();
+		context.moveTo(i, 0)
+		context.lineTo(i, canvas.width)
+		context.closePath();
+		context.stroke();
+	}
+	
+	context.beginPath();
+	let i = pixel;
+	while( i < canvas.height){
+		context.moveTo(0, i)
+		context.lineTo(canvas.height, i)
+		i+=pixel
+
+	}
+	context.stroke();
+}
+
 // /////////////////////////////////////////
 
 // FIN FUNCIONES DE GENERACION DE TRIANGULOS
@@ -243,12 +310,19 @@ function actualizarCanvas(message) {
 	if (background.src != null) {
 		context.drawImage(background,0,0)
 	}
-	
+
+	if(drawGri){
+		// drawGrid()
+	}
+
 	drawTriangles()
+
 	if (drawCon){
 		drawConnections()
 	}
+
 	drawPoints()
+
 	context.fillText(message, 10, 25);
 }
 
@@ -273,6 +347,8 @@ let drawPoints = () => {
 	}
 }
 
+// Eventos
+
 canvas.addEventListener('mousemove', function (evt) {
 	var mousePos = getMousePos(evt);
 	var message = 'Mouse position: ' + mousePos.x + ',' + mousePos.y;
@@ -288,7 +364,13 @@ canvas.addEventListener('click', (event) => {
 
 document.getElementById("showConnections").addEventListener("change", function(event){
 	drawCon = this.checked;
+	actualizarCanvas(this.checked ? "Conexiones Activado" : "Conexiones Desactivado")
 })
+
+// document.getElementById("showGrid").addEventListener("change", function(event){
+// 	drawGri = this.checked
+// 	actualizarCanvas(this.checked ? "Grid Activado" : "Grid Desactivado")
+// })
 
 // ////////////////
 // BOTONES
@@ -298,18 +380,34 @@ let reset = () => {
 	points = []
 	triangles = []
 	connections = []
-	actualizarCanvas()
+	actualizarCanvas("Borrados los puntos")
 }
 let borrar = () => {
 	points.pop()
 	triangles = []
 	connections = []
+	actualizarCanvas("Ultimo punto borrado")
 	generateMesh()
-	actualizarCanvas()
 
 }
 
 
+function readURL(input) {
+	if (input.files && input.files[0]) {
+		var reader = new FileReader();
+
+		reader.onload = function (e) {
+			background.src = e.target.result
+		};
+
+		reader.readAsDataURL(input.files[0]);
+	}
+}
+
+let cambiarImagen = function(){
+	let i = document.getElementById("fileImage")
+	readURL(i)
+}
 function main(){
 	actualizarCanvas("Pon el mouse encima del canvas para empezar")
 	
@@ -317,3 +415,34 @@ function main(){
 }
 
 window.onload = main
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
